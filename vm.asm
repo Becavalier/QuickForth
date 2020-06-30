@@ -1,3 +1,5 @@
+%include 'syscall.inc'
+
 ; macros;
 %define rstack r13
 %define pc r15
@@ -111,11 +113,7 @@ impl_dup:
 
 impl_print_top_stack:
     mov r10, [rsp]
-    mov rdi, 1
-    mov rdx, 1
-    mov rax, 1
-    lea rsi, [codes + r10]
-    syscall
+    sys_print [codes + r10], 1
 
 impl_exit:
     xor rdi, rdi
@@ -132,3 +130,4 @@ next:
 _start:
     push 2
     jmp impl_init
+    
