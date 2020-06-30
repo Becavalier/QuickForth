@@ -10,7 +10,6 @@ codes:
 section .bss
 resb 1023  ; high addr;
 rstack_start:
-    resb 1
 
 global _start
 section .text
@@ -18,6 +17,7 @@ section .text
 main_stub:
     dq xt_dup
     dq xt_plus
+    dq xt_dbl
     dq xt_print_top_stack
     dq xt_exit
   
@@ -29,8 +29,26 @@ nw_init:
 xt_init:
     dq impl_init
 
-nw_plus:
+nw_docol:
     dq nw_init
+    db 'docol', 0
+    db 0
+xt_docol:
+    sub rstack, 8
+    mov [rstack], pc
+    add w, 8
+    mov pc, w
+    jmp next
+
+nw_ret:
+    dq nw_docol
+    db 'ret', 0
+    db 0
+xt_ret:
+    dq impl_ret
+
+nw_plus:
+    dq nw_docol
     db '+', 0
     db 0
 xt_plus:
@@ -57,13 +75,28 @@ nw_exit:
 xt_exit:
     dq impl_exit
 
+nw_dbl:
+    dq nw_dbl
+    db 'dbl', 0
+    db 0
+xt_dbl:
+    dq xt_docol
+    dq xt_dup
+    dq xt_plus
+    dq xt_ret
+
 _nw_head:
     dq nw_exit
 
 ; implementations;
 impl_init:
-    mov rstack, rstack_start
+    mov rstack, rstack_start  ; stack holding old outer pc;
     mov pc, main_stub
+    jmp next
+
+impl_ret:
+    mov pc, [rstack]
+    add rstack, 8
     jmp next
 
 impl_plus:
@@ -97,5 +130,5 @@ next:
     jmp [w]
 
 _start:
-    push 3
+    push 2
     jmp impl_init
