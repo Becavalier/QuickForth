@@ -23,7 +23,7 @@ main_stub:
     dq xt_print_top_stack
     dq xt_exit
   
-; dictionary;
+; dictionary (words);
 nw_init:
     dq 0
     db 'init', 0
@@ -42,6 +42,7 @@ xt_docol:
     mov pc, w
     jmp next
 
+; return;
 nw_ret:
     dq nw_docol
     db 'ret', 0
@@ -50,12 +51,13 @@ xt_ret:
     dq impl_ret
 
 nw_plus:
-    dq nw_docol
+    dq nw_ret
     db '+', 0
     db 0
 xt_plus:
     dq impl_plus
 
+; duplicate;
 nw_dup:
     dq nw_plus
     db 'dup', 0
@@ -77,6 +79,7 @@ nw_exit:
 xt_exit:
     dq impl_exit
 
+; double;
 nw_dbl:
     dq nw_dbl
     db 'dbl', 0
@@ -116,15 +119,13 @@ impl_print_top_stack:
     sys_print [codes + r10], 1
 
 impl_exit:
-    xor rdi, rdi
-    mov rax, 60
-    syscall
+    sys_exit
 
 ; inner interpreter;
 next:
     mov w, pc
     add pc, 8
-    mov w, [w]
+    mov w, [w]  ; indirect-threaded: xt_ -> impl_;
     jmp [w]
 
 _start:
