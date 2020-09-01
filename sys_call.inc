@@ -19,5 +19,3 @@ mov rdx, %2
 mov rax, 0
 syscall
 %endmacro
-
-

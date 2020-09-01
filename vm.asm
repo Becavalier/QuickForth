@@ -1,16 +1,17 @@
-%include 'syscall.inc'
+%include 'sys_call.inc'
+%include 'sys_transform.inc'
 
-; macros;
+; macros.
 %define rstack r13
 %define pc r15
 %define w r14
 
 section .data
 codes:
-    db '0123456789ABCDEF'  ; char symbols;
+    db '0123456789ABCDEF'  ; char symbols.
 
 section .bss
-resb 1024  ; high addr;
+resb 1024  ; high addr.
 rstack_start:
 input_buf: resb 1024
 
@@ -28,7 +29,7 @@ repl_stub:
     ; dq xt_repl_reset
     dq xt_exit
 
-; dictionary (words);
+; dictionary (words).
 nw_init:
     dq 0
     db 'init', 0
@@ -47,7 +48,7 @@ xt_docol:
     mov pc, w
     jmp next
 
-; return;
+; return.
 nw_ret:
     dq nw_docol
     db 'ret', 0
@@ -95,7 +96,7 @@ xt_dbl:
     dq xt_plus
     dq xt_ret
 
-; read_word;
+; read_word.
 nw_read_word:
     dq nw_dbl
     db 'read_word', 0
@@ -103,7 +104,7 @@ nw_read_word:
 xt_read_word:
     dq impl_read_word
 
-; eval_word;
+; eval_word.
 nw_eval_word:
     dq nw_read_word
     db 'eval_word', 0
@@ -114,27 +115,36 @@ xt_eval_word:
 _nw_head:
     dq nw_eval_word
 
-; implementations;
+; implementations.
 impl_eval_word:
+    ; dealing with primitives (number).
+    ; (TOP GUARD).
+    cmp byte[input_buf], '9'
+    jle .num_parse
     mov r8, _nw_head
-.forward:
+.word_forward:
     mov r9, -1
-    mov r8, [r8]  ; start looking;
+    mov r8, [r8]  ; start looking.
     cmp r8, 0
     je .end
     mov r10, r8
     add r10, 8
-.loop:
+.word_loop:
     inc r9
     cmp byte[r10 + r9], 0
-    je .eval
+    je .word_eval
     mov bpl, [input_buf + r9]
     sub bpl, [r10 + r9]
-    jz .loop
-    jmp .forward
-.eval:
-    ; eval;
+    jz .word_loop
+    jmp .word_forward
+.word_eval:
+    ; eval word.
     jmp [r10 + r9 + 2]
+.num_parse:
+    ; eval number.
+    sys_parse_int_bg input_buf
+.num_eval:
+    push rax
 .end:
     jmp next
 
@@ -146,7 +156,7 @@ impl_read_word:
     jmp next
 
 impl_init:
-    mov rstack, rstack_start  ; stack holding old outer pc;
+    mov rstack, rstack_start  ; stack holding old outer pc.
     mov pc, main_stub
     jmp next
 
@@ -166,17 +176,18 @@ impl_dup:
     jmp next
 
 impl_print_top_stack:
+    ; TODO.
     mov r10, [rsp]
     sys_print [codes + r10], 1
 
 impl_exit:
     sys_exit
 
-; inner interpreter;
+; inner interpreter.
 next:
     mov w, pc
     add pc, 8
-    mov w, [w]  ; indirect-threaded: xt_ -> impl_;
+    mov w, [w]  ; indirect-threaded: xt_ -> impl_.
     jmp [w]
 
 _start:
