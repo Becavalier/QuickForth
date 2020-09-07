@@ -5,6 +5,7 @@
 %define rstack r13
 %define pc r15
 %define w r14
+%define o_rsp r12
 
 %define codes_arrow_idx 0x10
 %define codes_arrow_len 2
@@ -37,7 +38,7 @@ repl_stub:
     dq xt_repl_reset
     dq xt_exit
 
-; dictionary (words).
+; DICTIONARY (WORDS).
 nw_docol:
     dq 0
     db 'docol', 0
@@ -97,25 +98,70 @@ xt_dbl:
     dq xt_plus
     dq xt_ret
 
-_nw_head:
+; drop;
+nw_drop:
     dq nw_dbl
+    db 'drop', 0
+    db 0
+xt_drop:
+    dq impl_drop
 
-; private words.
+; swap;
+nw_swap:
+    dq nw_drop
+    db 'swap', 0
+    db 0
+xt_swap:
+    dq impl_swap
+
+; rotate;
+nw_rot:
+    dq nw_swap
+    db 'rot', 0
+    db 0
+xt_rot:
+    dq impl_rot
+
+_nw_head:
+    dq nw_swap
+
+; PRIVATE WORDS.
 xt_repl_reset:
     dq impl_repl_reset
 
 xt_init:
     dq impl_init
 
-; read_word.
 xt_read_word:
     dq impl_read_word
 
-; eval_word.
 xt_eval_word:
     dq impl_eval_word
 
-; implementations.
+; IMPLEMENTATIONS.
+impl_rot:  ; top -> bottom.
+    ; TODO.
+    jmp next
+
+impl_swap:
+    mov r8, o_rsp
+    sub r8, rsp
+    cmp r8, 0x10 ; > 2.
+    jl .end
+    pop r8
+    pop r9
+    push r8
+    push r9
+.end:
+    jmp next
+
+impl_drop:
+    cmp o_rsp, rsp
+    je .end
+    add rsp, 8
+.end:
+    jmp next
+
 impl_repl_reset:
     mov pc, repl_stub
     jmp next
@@ -132,7 +178,7 @@ impl_eval_word:
     mov r8, _nw_head
 .word_forward:
     mov r9, -1
-    mov r8, [r8]  ; start looking.
+    mov r8, [r8]  ; start looking. 
     cmp r8, 0
     je .invalid
     mov r10, r8
@@ -168,6 +214,8 @@ impl_read_word:
     jmp next
 
 impl_init:
+    ; save %rsp;
+    mov o_rsp, rsp
     mov rstack, rstack_start  ; stack holding old outer pc.
     mov pc, repl_stub
     jmp next
