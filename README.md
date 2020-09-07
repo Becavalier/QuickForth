@@ -61,6 +61,7 @@ Execution Sequences (Colon Words):
 * **Word**:
 
 <pre>
+|------------->  <i><b>header</b></i> (exclude private word)  <---------------|
 +----------------------------+----------------+-----------------+------------------------+
 | <i><b>addr</b> of previous word (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i><b>addr</b> of implementation</i> |
 +----------------------------+----------------+-----------------+------------------------+

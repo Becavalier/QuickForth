@@ -6,9 +6,16 @@
 %define pc r15
 %define w r14
 
+%define codes_arrow_idx 0x10
+%define codes_arrow_len 2
+%define codes_lfcr_idx 0x12
+%define codes_lfcr_len 2
+%define codes_m_invalid_idx 0x14
+%define codes_m_invalid_len 11
+
 section .data
 codes:
-    db '0123456789ABCDEF'  ; char symbols.
+    db `0123456789ABCDEF> \n\r(invalid)\n\r`  ; char symbols.
 
 section .bss
 resb 1024  ; high addr.
@@ -27,20 +34,12 @@ main_stub:
 repl_stub:
     dq xt_read_word
     dq xt_eval_word
-    dq xt_print_top_stack
-    ; dq xt_repl_reset
+    dq xt_repl_reset
     dq xt_exit
 
 ; dictionary (words).
-nw_init:
-    dq 0
-    db 'init', 0
-    db 0
-xt_init:
-    dq impl_init
-
 nw_docol:
-    dq nw_init
+    dq 0
     db 'docol', 0
     db 0
 xt_docol:
@@ -98,37 +97,44 @@ xt_dbl:
     dq xt_plus
     dq xt_ret
 
-; read_word.
-nw_read_word:
+_nw_head:
     dq nw_dbl
-    db 'read_word', 0
-    db 0
+
+; private words.
+xt_repl_reset:
+    dq impl_repl_reset
+
+xt_init:
+    dq impl_init
+
+; read_word.
 xt_read_word:
     dq impl_read_word
 
 ; eval_word.
-nw_eval_word:
-    dq nw_read_word
-    db 'eval_word', 0
-    db 0
 xt_eval_word:
     dq impl_eval_word
-    
-_nw_head:
-    dq nw_eval_word
 
 ; implementations.
+impl_repl_reset:
+    mov pc, repl_stub
+    jmp next
+
 impl_eval_word:
     ; dealing with primitives (number).
-    ; (TOP GUARD).
-    cmp byte[input_buf], '9'
-    jle .num_parse
+    xor r8, r8
+    mov r8b, [input_buf]
+    cmp r8, '9'
+    jg .lookup
+    cmp r8, '0'
+    jg .num_parse
+.lookup:
     mov r8, _nw_head
 .word_forward:
     mov r9, -1
     mov r8, [r8]  ; start looking.
     cmp r8, 0
-    je .end
+    je .invalid
     mov r10, r8
     add r10, 8
 .word_loop:
@@ -142,24 +148,28 @@ impl_eval_word:
 .word_eval:
     ; eval word.
     jmp [r10 + r9 + 2]
+.invalid:
+    sys_print [codes + codes_m_invalid_idx], codes_m_invalid_len
+    jmp .end
 .num_parse:
     ; eval number.
-    sys_parse_int_bg input_buf
+    sys_parse_int input_buf
 .num_eval:
     push rax
 .end:
     jmp next
 
 impl_read_word:
+    sys_print [codes + codes_arrow_idx], codes_arrow_len
 .read:
-    sys_read_stdin input_buf, 32
+    sys_read_stdin input_buf, 0x20
     cmp rax, 1
     jle .read
     jmp next
 
 impl_init:
     mov rstack, rstack_start  ; stack holding old outer pc.
-    mov pc, main_stub
+    mov pc, repl_stub
     jmp next
 
 impl_ret:
@@ -194,6 +204,8 @@ impl_print_top_stack:
     dec r10
     cmp r10, 0
     jne .print
+    sys_print [codes + codes_lfcr_idx], codes_lfcr_len
+    jmp next
 
 impl_exit:
     sys_exit
@@ -206,6 +218,6 @@ next:
     jmp [w]
 
 _start:
-    push 2
+    push 0
     jmp impl_init
     

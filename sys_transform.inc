@@ -1,7 +1,7 @@
-; (BOTTOM GUARD).
-%macro sys_parse_int_bg 1
-    mov r8, 0
+%macro sys_parse_int 1
     xor rax, rax
+    xor r8, r8
+    xor r9, r9
 %%start:
     mov r9b, [%1 + r8]
     cmp r9b, '0'

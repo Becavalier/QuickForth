@@ -7,8 +7,8 @@ syscall
 %macro sys_print 2
 lea rsi, %1
 mov rdi, 1
-mov rdx, 1
-mov rax, %2
+mov rdx, %2
+mov rax, 1
 syscall
 %endmacro
 
