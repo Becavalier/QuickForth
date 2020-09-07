@@ -21,11 +21,13 @@ section .text
 main_stub:
     dq xt_read_word
     dq xt_eval_word
+    dq xt_print_top_stack
     dq xt_exit
 
 repl_stub:
     dq xt_read_word
     dq xt_eval_word
+    dq xt_print_top_stack
     ; dq xt_repl_reset
     dq xt_exit
 
@@ -176,9 +178,22 @@ impl_dup:
     jmp next
 
 impl_print_top_stack:
-    ; TODO.
-    mov r10, [rsp]
-    sys_print [codes + r10], 1
+    mov rax, [rsp]
+    mov rcx, 10
+    xor r10, r10
+.loop:    
+    xor rdx, rdx
+    div rcx
+    push rdx
+    inc r10
+    cmp rax, 0
+    jne .loop
+.print:
+    pop rdx
+    sys_print [codes + rdx], 1
+    dec r10
+    cmp r10, 0
+    jne .print
 
 impl_exit:
     sys_exit
