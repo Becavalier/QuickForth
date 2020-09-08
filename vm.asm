@@ -68,9 +68,30 @@ nw_plus:
 xt_plus:
     dq impl_plus
 
+nw_sub:
+    dq nw_plus
+    db '-', 0
+    db 0
+xt_sub:
+    dq impl_sub
+
+nw_mul:
+    dq nw_sub
+    db '*', 0
+    db 0
+xt_mul:
+    dq impl_mul
+
+nw_div:
+    dq nw_mul
+    db '/', 0
+    db 0
+xt_div:
+    dq impl_div
+
 ; duplicate;
 nw_dup:
-    dq nw_plus
+    dq nw_div
     db 'dup', 0
     db 0
 xt_dup:
@@ -193,38 +214,46 @@ impl_repl_reset:
 
 impl_eval_word:
     ; deal with primitives (number).
+    xor rax, rax
     xor r8, r8
-    mov r8b, [input_buf]
+    lea r9, [input_buf]
+    mov r8b, [r9]
+    cmp r8, '-'
+    jne .test_num
+    inc r9
+    mov r8b, [r9]
+    mov rax, -1  ; negative.
+.test_num:
     cmp r8, '9'
     jg .lookup
     cmp r8, '0'
-    jg .num_parse
+    jge .num_parse
 .lookup:
     mov r8, _nw_head
 .word_forward:
-    mov r9, -1
+    mov rcx, -1
     mov r8, [r8]  ; start looking. 
     cmp r8, 0
     je .invalid
     mov r10, r8
     add r10, 8
 .word_loop:
-    inc r9
-    cmp byte[r10 + r9], 0
+    inc rcx
+    cmp byte[r10 + rcx], 0
     je .word_eval
-    mov bpl, [input_buf + r9]
-    sub bpl, [r10 + r9]
+    mov bpl, [r9 + rcx]
+    sub bpl, [r10 + rcx]
     jz .word_loop
     jmp .word_forward
 .word_eval:
     ; eval word.
-    jmp [r10 + r9 + 2]
+    jmp [r10 + rcx + 2]
 .invalid:
     sys_print [codes + codes_m_invalid_idx], codes_m_invalid_len
     jmp .end
 .num_parse:
     ; eval number.
-    sys_parse_int input_buf
+    sys_parse_int r9
 .num_eval:
     push rax
 .end:
@@ -255,6 +284,24 @@ impl_plus:
     pop rax
     add rax, [rsp]
     mov [rsp], rax
+    jmp next
+
+impl_sub:
+    ;pop rax
+    ;sub rax, [rsp]
+    ;mov [rsp], rax
+    jmp next
+
+impl_mul:
+    ;pop rax
+    ;mul qword[rsp]
+    ;mov [rsp], rax
+    jmp next
+
+impl_div:
+    ;pop rax
+    ;div qword[rsp]
+    ;mov [rsp], rax
     jmp next
 
 impl_dup:
