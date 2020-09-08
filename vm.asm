@@ -1,8 +1,9 @@
 %include 'sys_call.inc'
 %include 'sys_transform.inc'
 
-; macros.
+; macros (%rcx and %r11 could be modified by syscall).
 %define rstack r13
+%define tstack rbx
 %define pc r15
 %define w r14
 %define o_rsp r12
@@ -19,6 +20,8 @@ codes:
     db `0123456789ABCDEF> \n\r(invalid)\n\r`  ; char symbols.
 
 section .bss
+resb 1024
+tstack_start:
 resb 1024  ; high addr.
 rstack_start:
 input_buf: resb 1024
@@ -123,7 +126,7 @@ xt_rot:
     dq impl_rot
 
 _nw_head:
-    dq nw_swap
+    dq nw_rot
 
 ; PRIVATE WORDS.
 xt_repl_reset:
@@ -139,8 +142,30 @@ xt_eval_word:
     dq impl_eval_word
 
 ; IMPLEMENTATIONS.
-impl_rot:  ; top -> bottom.
-    ; TODO.
+impl_rot:  ; top -> bottom (left rotate).
+    xor r8, r8
+.start:
+    lea r9, [rsp + 8]
+    cmp o_rsp, r9
+    jle .last
+    mov r10, [rsp]
+    sub tstack, 8
+    mov [tstack], r10
+    add rsp, 8
+    inc r8
+    jmp .start
+.last:
+    pop r9
+.loop:
+    cmp r8, 0
+    je .over
+    push qword[tstack]
+    add tstack, 8
+    dec r8
+    jmp .loop
+.over:
+    push r9
+.end:
     jmp next
 
 impl_swap:
@@ -167,7 +192,7 @@ impl_repl_reset:
     jmp next
 
 impl_eval_word:
-    ; dealing with primitives (number).
+    ; deal with primitives (number).
     xor r8, r8
     mov r8b, [input_buf]
     cmp r8, '9'
@@ -216,6 +241,7 @@ impl_read_word:
 impl_init:
     ; save %rsp;
     mov o_rsp, rsp
+    mov tstack, tstack_start
     mov rstack, rstack_start  ; stack holding old outer pc.
     mov pc, repl_stub
     jmp next
