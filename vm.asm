@@ -307,15 +307,16 @@ impl_sub:
     jmp next
 
 impl_mul:
-    ;pop rax
-    ;mul qword[rsp]
-    ;mov [rsp], rax
+    pop rax
+    imul qword[rsp]
+    mov [rsp], rax
     jmp next
 
 impl_div:
-    ;pop rax
-    ;div qword[rsp]
-    ;mov [rsp], rax
+    xor rdx, rdx
+    pop rax
+    idiv qword[rsp]
+    mov [rsp], rax
     jmp next
 
 impl_dup:
