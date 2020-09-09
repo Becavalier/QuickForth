@@ -22,6 +22,4 @@
 %%end:
     xor rax, rax
     movsx rax, r8d
-    ;mov r8, 0xffffffff00000000
-    ;or rax, r8
 %endmacro

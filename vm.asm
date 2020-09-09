@@ -8,16 +8,18 @@
 %define w r14
 %define o_rsp r12
 
-%define codes_arrow_idx 0x10
-%define codes_arrow_len 2
-%define codes_lfcr_idx 0x12
-%define codes_lfcr_len 2
-%define codes_m_invalid_idx 0x14
-%define codes_m_invalid_len 11
+%define ascii_digits_offset 0x30
+%define codes_arrow_sign_idx 0x10
+%define codes_arrow_sign_len 2
+%define codes_wrap_ctl_idx 0x12
+%define codes_wrap_ctl_len 2
+%define codes_invalid_txt_idx 0x14
+%define codes_invalid_txt_len 11
+%define codes_negative_sign_idx 0x1f
 
 section .data
 codes:
-    db `0123456789ABCDEF> \n\r(invalid)\n\r`  ; char symbols.
+    db `0123456789ABCDEF> \n\r(invalid)\n\r-`  ; char symbols.
 
 section .bss
 resb 1024
@@ -219,16 +221,18 @@ impl_eval_word:
     lea r9, [input_buf]
     mov r8b, [r9]
     cmp r8, '-'
-    jne .test_num
+    jne .validate_num
+    cmp byte[r9 + 1], 0xa
+    je .lookup_word
     inc r9
     mov r8b, [r9]
-    mov rax, -1  ; negative.
-.test_num:
+    mov rax, -1  ; indicate negative.
+.validate_num:
     cmp r8, '9'
-    jg .lookup
+    jg .lookup_word
     cmp r8, '0'
     jge .num_parse
-.lookup:
+.lookup_word:
     mov r8, _nw_head
 .word_forward:
     mov rcx, -1
@@ -249,10 +253,10 @@ impl_eval_word:
     ; eval word.
     jmp [r10 + rcx + 2]
 .invalid:
-    sys_print [codes + codes_m_invalid_idx], codes_m_invalid_len
+    sys_print [codes + codes_invalid_txt_idx], codes_invalid_txt_len
     jmp .end
 .num_parse:
-    ; eval number.
+    ;  number.
     sys_parse_int r9
 .num_eval:
     push rax
@@ -260,7 +264,7 @@ impl_eval_word:
     jmp next
 
 impl_read_word:
-    sys_print [codes + codes_arrow_idx], codes_arrow_len
+    sys_print [codes + codes_arrow_sign_idx], codes_arrow_sign_len
 .read:
     sys_read_stdin input_buf, 0x20
     cmp rax, 1
@@ -281,15 +285,25 @@ impl_ret:
     jmp next
 
 impl_plus:
+    mov r8, rsp
+    add r8, 8
+    cmp o_rsp, r8
+    jl .end
     pop rax
     add rax, [rsp]
     mov [rsp], rax
+.end:
     jmp next
 
 impl_sub:
-    ;pop rax
-    ;sub rax, [rsp]
-    ;mov [rsp], rax
+    mov r8, rsp
+    add r8, 8
+    cmp o_rsp, r8
+    jl .end
+    pop rax
+    sub rax, [rsp]
+    mov [rsp], rax
+.end:
     jmp next
 
 impl_mul:
@@ -310,22 +324,30 @@ impl_dup:
 
 impl_print_top_stack:
     mov rax, [rsp]
+    test eax, 1 << 15
+    je .init
+    not rax
+    inc rax
+    push rax
+    sys_print [codes + codes_negative_sign_idx], 1  ; %rax will be modified.
+    pop rax
+.init:
     mov rcx, 10
     xor r10, r10
 .loop:    
     xor rdx, rdx
     div rcx
-    push rdx
+    dec tstack
+    add rdx, ascii_digits_offset
+    mov r9, rdx
+    mov [tstack], r9b
     inc r10
-    cmp rax, 0
+    cmp eax, 0
     jne .loop
 .print:
-    pop rdx
-    sys_print [codes + rdx], 1
-    dec r10
-    cmp r10, 0
-    jne .print
-    sys_print [codes + codes_lfcr_idx], codes_lfcr_len
+    sys_print [tstack], r10
+    sys_print [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
+    mov tstack, tstack_start
     jmp next
 
 impl_exit:
