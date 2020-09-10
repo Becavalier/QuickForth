@@ -6,7 +6,7 @@ A forth dialect prototype with its VM.
 ### Compile & Run
 
 ```bash
-. ./build.sh
+bash ./build.sh
 ```
 
 ### Concept

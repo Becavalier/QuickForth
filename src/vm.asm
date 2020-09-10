@@ -3,7 +3,7 @@
 
 ; macros (%rcx and %r11 could be modified by syscall).
 %define rstack r13
-%define tstack rbx
+%define astack rbx
 %define pc r15
 %define w r14
 %define o_rsp r12
@@ -29,26 +29,26 @@ codes:
     db `0123456789ABCDEF> \n\r(invalid)\n\r-`  ; char symbols.
 
 section .bss
+; stacks.
 resb 1024
-tstack_start:
+attach_stack_start:
 resb 1024  ; high addr.
-rstack_start:
+return_stack_start:
+; static memory.
 input_buf: resb 1024
+program_stub: resb 16
 
 global _start
 section .text
 
-main_stub:
-    dq xt_read_word
-    dq xt_eval_word
-    dq xt_print_top_stack
+compilation_stub:
+    ; ready to go.
     dq xt_exit
 
 repl_stub:
     dq xt_read_word
     dq xt_eval_word
     dq xt_repl_reset
-    dq xt_exit
 
 ; DICTIONARY (WORDS).
 nw_docol:
@@ -63,8 +63,15 @@ xt_docol:
     jmp next
 
 ; return.
-nw_ret:
+nw_colon:
     dq nw_docol
+    db ':', 0
+    db 0
+xt_colon:
+    dq impl_colon
+
+nw_ret:
+    dq nw_colon
     db 'ret', 0
     db 0
 xt_ret:
@@ -175,8 +182,21 @@ nw_rot:
 xt_rot:
     dq impl_rot
 
-_nw_head:
+nw_drop_print:
     dq nw_rot
+    db '.', 0
+    db 0
+xt_drop_print:
+    dq xt_docol
+    dq xt_print_top_stack
+    dq xt_drop
+    dq xt_ret
+
+_nw_last:
+    dq nw_docol
+
+_nw_head:
+    dq nw_drop_print
 
 ; PRIVATE WORDS.
 xt_repl_reset:
@@ -199,8 +219,8 @@ impl_rot:  ; top -> bottom (left rotate).
     cmp o_rsp, r9
     jle .last
     mov r10, [rsp]
-    sub tstack, 8
-    mov [tstack], r10
+    sub astack, 8
+    mov [astack], r10
     add rsp, 8
     inc r8
     jmp .start
@@ -209,8 +229,8 @@ impl_rot:  ; top -> bottom (left rotate).
 .loop:
     cmp r8, 0
     je .over
-    push qword[tstack]
-    add tstack, 8
+    push qword[astack]
+    add astack, 8
     dec r8
     jmp .loop
 .over:
@@ -231,8 +251,7 @@ impl_swap:
     jmp next
 
 impl_drop:
-    cmp o_rsp, rsp
-    je .end
+    GUARD_STACK_LEN 1
     add rsp, 8
 .end:
     jmp next
@@ -278,12 +297,16 @@ impl_eval_word:
     jmp .word_forward
 .word_eval:
     ; eval word.
-    jmp [r10 + rcx + 2]
+    lea r8, [r10 + rcx + 2]
+    mov [program_stub], r8
+    mov qword[program_stub + 8], xt_repl_reset
+    mov pc, program_stub  ; dynamic thread.
+    jmp next
 .invalid:
     sys_print [codes + codes_invalid_txt_idx], codes_invalid_txt_len
     jmp .end
 .num_parse:
-    ;  number.
+    ; number.
     sys_parse_int r9
 .num_eval:
     push rax
@@ -301,14 +324,18 @@ impl_read_word:
 impl_init:
     ; save %rsp;
     mov o_rsp, rsp
-    mov tstack, tstack_start
-    mov rstack, rstack_start  ; stack holding old outer pc.
+    mov astack, attach_stack_start
+    mov rstack, return_stack_start  ; stack holding old outer pc.
     mov pc, repl_stub
     jmp next
 
 impl_ret:
     mov pc, [rstack]
     add rstack, 8
+    jmp next
+
+impl_colon:
+
     jmp next
 
 impl_plus:
@@ -397,17 +424,17 @@ impl_print_top_stack:
 .loop:    
     xor rdx, rdx
     div rcx
-    dec tstack
+    dec astack
     add rdx, ascii_digits_offset
     mov r9, rdx
-    mov [tstack], r9b
+    mov [astack], r9b
     inc r10
     cmp eax, 0
     jne .loop
 .print:
-    sys_print [tstack], r10
+    sys_print [astack], r10
     sys_print [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
-    mov tstack, tstack_start
+    mov astack, attach_stack_start
     jmp next
 
 impl_exit:
@@ -415,9 +442,8 @@ impl_exit:
 
 ; inner interpreter.
 next:
-    mov w, pc
+    mov w, [pc]  ; indirect-threaded: xt_ -> impl_.
     add pc, 8
-    mov w, [w]  ; indirect-threaded: xt_ -> impl_.
     jmp [w]
 
 _start:
