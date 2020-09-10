@@ -1,4 +1,4 @@
-# Forthress
+# QuickForth
 A forth dialect prototype with its VM. 
 
 ***Can only be used under Linux X86-64***.
