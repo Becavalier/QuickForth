@@ -17,6 +17,13 @@
 %define codes_invalid_txt_len 11
 %define codes_negative_sign_idx 0x1f
 
+%macro GUARD_STACK_LEN 1
+    mov r8, rsp
+    add r8, 4 * %1
+    cmp o_rsp, r8
+    jl .end
+%endmacro
+
 section .data
 codes:
     db `0123456789ABCDEF> \n\r(invalid)\n\r-`  ; char symbols.
@@ -91,16 +98,36 @@ nw_div:
 xt_div:
     dq impl_div
 
-; duplicate;
-nw_dup:
+nw_mod:
     dq nw_div
+    db '%', 0
+    db 0
+xt_mod:
+    dq impl_mod
+
+nw_dup:
+    dq nw_mod
     db 'dup', 0
     db 0
 xt_dup:
     dq impl_dup
 
-nw_print_top_stack:
+nw_not:
     dq nw_dup
+    db '!', 0
+    db 0
+xt_not:
+    dq impl_not
+
+nw_equal:
+    dq nw_not
+    db '=', 0
+    db 0
+xt_equal:
+    dq impl_equal
+
+nw_print_top_stack:
+    dq nw_equal
     db 'print_top_stack', 0
     db 0
 xt_print_top_stack:
@@ -285,10 +312,7 @@ impl_ret:
     jmp next
 
 impl_plus:
-    mov r8, rsp
-    add r8, 8
-    cmp o_rsp, r8
-    jl .end
+    GUARD_STACK_LEN 2
     pop rax
     add rax, [rsp]
     mov [rsp], rax
@@ -296,10 +320,7 @@ impl_plus:
     jmp next
 
 impl_sub:
-    mov r8, rsp
-    add r8, 8
-    cmp o_rsp, r8
-    jl .end
+    GUARD_STACK_LEN 2
     pop rax
     sub rax, [rsp]
     mov [rsp], rax
@@ -307,16 +328,54 @@ impl_sub:
     jmp next
 
 impl_mul:
+    GUARD_STACK_LEN 2
     pop rax
     imul qword[rsp]
     mov [rsp], rax
+.end:
     jmp next
 
 impl_div:
+    GUARD_STACK_LEN 2                                                                                                                                                                           
     xor rdx, rdx
     pop rax
     idiv qword[rsp]
     mov [rsp], rax
+.end:
+    jmp next
+
+impl_mod:
+    GUARD_STACK_LEN 2
+    xor rdx, rdx
+    pop rax
+    idiv qword[rsp]
+    mov [rsp], rdx
+.end:
+    jmp next
+
+impl_not:
+    GUARD_STACK_LEN 1
+    pop rax
+    cmp rax, 0
+    je .true
+    push 0
+    jmp .end
+.true:
+    push 1
+.end:
+    jmp next
+
+impl_equal:
+    GUARD_STACK_LEN 2
+    pop rax
+    pop r8
+    cmp rax, r8
+    je .equal
+    push 0
+    jmp .end
+.equal:
+    push 1
+.end:
     jmp next
 
 impl_dup:
