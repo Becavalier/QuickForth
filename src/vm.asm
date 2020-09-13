@@ -182,8 +182,15 @@ nw_rot:
 xt_rot:
     dq impl_rot
 
-nw_drop_print:
+nw_print_all_stack:
     dq nw_rot
+    db '.S', 0
+    db 0
+xt_print_all_stack:
+    dq impl_print_all_stack
+
+nw_drop_print:
+    dq nw_print_all_stack
     db '.', 0
     db 0
 xt_drop_print:
@@ -290,9 +297,12 @@ impl_eval_word:
 .word_loop:
     inc rcx
     cmp byte[r10 + rcx], 0
+    jne .continue
+    cmp byte[r9 + rcx], `\n`
     je .word_eval
-    mov bpl, [r9 + rcx]
-    sub bpl, [r10 + rcx]
+.continue:
+    mov bpl, [r9 + rcx]  ; input char;
+    sub bpl, [r10 + rcx]  ; comparing char;
     jz .word_loop
     jmp .word_forward
 .word_eval:
@@ -300,7 +310,7 @@ impl_eval_word:
     lea r8, [r10 + rcx + 2]
     mov [program_stub], r8
     mov qword[program_stub + 8], xt_repl_reset
-    mov pc, program_stub  ; dynamic thread.
+    mov pc, program_stub  ; dynamic threading.
     jmp next
 .invalid:
     sys_print [codes + codes_invalid_txt_idx], codes_invalid_txt_len
@@ -323,6 +333,7 @@ impl_read_word:
 
 impl_init:
     ; save %rsp;
+    xor rbp, rbp
     mov o_rsp, rsp
     mov astack, attach_stack_start
     mov rstack, return_stack_start  ; stack holding old outer pc.
@@ -409,8 +420,25 @@ impl_dup:
     push qword[rsp]
     jmp next
 
+impl_print_all_stack:
+    xor rbp, rbp
+.loop:
+    lea r8, [rsp + 8 * rbp]
+    cmp o_rsp, r8
+    jle .end
+    mov r10, 2 << 5
+    mov qword[program_stub], .continue  ; cross the next instruction;
+    jmp impl_print_top_stack
+.continue:
+    inc rbp
+    jmp .loop
+.end:
+    jmp next
+
+; %rbp - stack base;
+; %r10 - redirection flag;
 impl_print_top_stack:
-    mov rax, [rsp]
+    mov rax, [rsp + 8 * rbp]
     test eax, 1 << 15
     je .init
     not rax
@@ -420,7 +448,7 @@ impl_print_top_stack:
     pop rax
 .init:
     mov rcx, 10
-    xor r10, r10
+    xor r8, r8
 .loop:    
     xor rdx, rdx
     div rcx
@@ -428,13 +456,18 @@ impl_print_top_stack:
     add rdx, ascii_digits_offset
     mov r9, rdx
     mov [astack], r9b
-    inc r10
+    inc r8
     cmp eax, 0
     jne .loop
 .print:
-    sys_print [astack], r10
+    sys_print [astack], r8
     sys_print [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
     mov astack, attach_stack_start
+    cmp r10, 2 << 5
+    jne .end 
+.jump:
+    jmp [program_stub]
+.end:
     jmp next
 
 impl_exit:
