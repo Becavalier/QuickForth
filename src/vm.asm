@@ -17,6 +17,8 @@
 %define codes_invalid_txt_len 11
 %define codes_negative_sign_idx 0x1f
 
+%define REDIRECTION_FLAG 2 << 5
+
 %macro GUARD_STACK_LEN 1
     mov r8, rsp
     add r8, 4 * %1
@@ -426,7 +428,7 @@ impl_print_all_stack:
     lea r8, [rsp + 8 * rbp]
     cmp o_rsp, r8
     jle .end
-    mov r10, 2 << 5
+    mov r10, REDIRECTION_FLAG
     mov qword[program_stub], .continue  ; cross the next instruction;
     jmp impl_print_top_stack
 .continue:
@@ -463,7 +465,7 @@ impl_print_top_stack:
     sys_print [astack], r8
     sys_print [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
     mov astack, attach_stack_start
-    cmp r10, 2 << 5
+    cmp r10, REDIRECTION_FLAG
     jne .end 
 .jump:
     jmp [program_stub]
