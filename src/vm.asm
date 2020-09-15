@@ -23,7 +23,7 @@
     mov r8, rsp
     add r8, 4 * %1
     cmp o_rsp, r8
-    jl .end
+    jle .end
 %endmacro
 
 section .data
@@ -477,7 +477,7 @@ impl_exit:
 
 ; inner interpreter.
 next:
-    mov w, [pc]  ; indirect-threaded: xt_ -> impl_.
+    mov w, [pc]  ; indirect-threading: xt_ -> impl_.
     add pc, 8
     jmp [w]
 
