@@ -1,3 +1,4 @@
+
 # QuickForth
 A forth dialect prototype with its VM. 
 
@@ -56,16 +57,28 @@ Execution Sequences (Colon Words):
 * **Word**:
 
 <pre>
-|------------->  <i><b>header</b></i> (exclude private word)  <---------------|
-+----------------------------+----------------+-----------------+------------------------+
-| <i><b>addr</b> of previous word (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i><b>addr</b> of implementation</i> |
-+----------------------------+----------------+-----------------+------------------------+
+|---------------------->  <i><b>header</b></i> (exclude private word)  <------------------------|
++----------------------------+----------------+-----------------+-----------------+------------------------+
+| <i><b>addr</b> of previous word (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i><b>immediates</b> (dq)</i> | <i><b>addr</b> of implementation</i> |
++----------------------------+----------------+-----------------+-----------------+------------------------+
+
+
+    +-----------------+
+... | <i><b>immediates</b> (dq)</i> | ... => <i>(2 immdeiates at most, each one is 4 bytes.)</i>
+    +-----------------+
+
 </pre>
 
 * **Dictionary**:
 
 <pre>
-        +------+    +------+     +------+    +------+
-(tail)  | <i>word</i> | -> | <i>word</i> | ... | <i>word</i> | -> | <i>word</i> | (head)
-        +------+    +------+     +------+    +------+
+ <i><b>(head)</b></i>                               <i><b>(tail)</b></i>             <i><b>(.bss)</b></i>
++------+    +------+     +------+    +------+    +--------------------+
+| <i>word</i> | -> | <i>word</i> | ... | <i>word</i> | -> | <i>word</i> | -> | <i><b>dynamic_colon_stub</b></i> | -> <i>(dynamic words)</i>
++------+    +------+     +------+    +------+    +--------------------+
+
+    +--------------------+        +-------------------------------------+
+... | <i><b>dynamic_colon_stub</b></i> | ... => | <i>next effective address (dq)</i> | <i>words</i> | ... 
+    +--------------------+        +-------------------------------------+
+
 </pre>

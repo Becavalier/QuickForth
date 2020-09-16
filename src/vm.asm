@@ -38,7 +38,8 @@ resb 1024  ; high addr.
 return_stack_start:
 ; static memory.
 input_buf: resb 1024
-program_stub: resb 16
+dynamic_colon_stub: resb 4096
+dynamic_program_stub: resb 16
 
 global _start
 section .text
@@ -52,9 +53,9 @@ repl_stub:
     dq xt_eval_word
     dq xt_repl_reset
 
-; DICTIONARY (WORDS).
+; [DICTIONARY (WORDS)].
 nw_docol:
-    dq 0
+    dq dynamic_colon_stub + 8  ; point to the first dynamic colon;
     db 'docol', 0
     db 0
 xt_docol:
@@ -184,8 +185,15 @@ nw_rot:
 xt_rot:
     dq impl_rot
 
-nw_print_all_stack:
+nw_define_colon:
     dq nw_rot
+    db ':', 0
+    db 0
+xt_define_colon:
+    dq impl_define_colon
+
+nw_print_all_stack:
+    dq nw_define_colon
     db '.S', 0
     db 0
 xt_print_all_stack:
@@ -207,7 +215,7 @@ _nw_last:
 _nw_head:
     dq nw_drop_print
 
-; PRIVATE WORDS.
+; [PRIVATE WORDS]
 xt_repl_reset:
     dq impl_repl_reset
 
@@ -220,7 +228,50 @@ xt_read_word:
 xt_eval_word:
     dq impl_eval_word
 
-; IMPLEMENTATIONS.
+; [IMPLEMENTATIONS]
+impl_define_colon:
+    lea r8, [input_buf]
+.move:
+    inc r8
+    mov r9b, [r8]
+    cmp r9b, ' '
+    jne .define_word
+    jmp .move
+.define_word:
+    mov r9, qword[dynamic_colon_stub]  ; available address.
+    push r9  ; save endpoint.
+    add r9, 8
+.loop:
+    mov r10b, [r8]
+    cmp r10b, ' '
+    je .null_terminate
+    mov [r9], r10b
+    inc r8
+    inc r9
+    jmp .loop
+.null_terminate:
+    mov byte[r9], 0
+.reserved:
+    inc r9
+    mov byte[r9], 0  ; reserved byte.
+.find_colon:
+    inc r9
+    mov qword[r9], xt_docol
+    ; lookup;
+
+    ;add r9, 8
+    ;mov qword[r9], xt_print_top_stack
+
+    add r9, 8
+    mov qword[r9], xt_ret
+.end:
+    add r9, 8
+    mov qword[r9], 0
+    pop r8  ; pop endpoint.
+    mov [r8], r9 
+    mov qword[dynamic_colon_stub], r9
+    jmp next
+
 impl_rot:  ; top -> bottom (left rotate).
     xor r8, r8
 .start:
@@ -298,21 +349,23 @@ impl_eval_word:
     add r10, 8
 .word_loop:
     inc rcx
+    mov bpl, [r9 + rcx]  ; input char;
     cmp byte[r10 + rcx], 0
     jne .continue
-    cmp byte[r9 + rcx], `\n`
+    cmp bpl, `\n`
+    je .word_eval
+    cmp bpl, ' '
     je .word_eval
 .continue:
-    mov bpl, [r9 + rcx]  ; input char;
     sub bpl, [r10 + rcx]  ; comparing char;
     jz .word_loop
     jmp .word_forward
 .word_eval:
     ; eval word.
     lea r8, [r10 + rcx + 2]
-    mov [program_stub], r8
-    mov qword[program_stub + 8], xt_repl_reset
-    mov pc, program_stub  ; dynamic threading.
+    mov [dynamic_program_stub], r8
+    mov qword[dynamic_program_stub + 8], xt_repl_reset
+    mov pc, dynamic_program_stub  ; dynamic threading.
     jmp next
 .invalid:
     sys_print [codes + codes_invalid_txt_idx], codes_invalid_txt_len
@@ -334,8 +387,12 @@ impl_read_word:
     jmp next
 
 impl_init:
-    ; save %rsp;
-    xor rbp, rbp
+    ; save %rsi;
+    xor rsi, rsi
+    ; initialize dynamic colon sutb;
+    lea r8, [dynamic_colon_stub + 8]
+    mov qword[r8], 0
+    mov qword[dynamic_colon_stub], r8
     mov o_rsp, rsp
     mov astack, attach_stack_start
     mov rstack, return_stack_start  ; stack holding old outer pc.
@@ -423,24 +480,25 @@ impl_dup:
     jmp next
 
 impl_print_all_stack:
-    xor rbp, rbp
+    xor rsi, rsi
 .loop:
-    lea r8, [rsp + 8 * rbp]
+    lea r8, [rsp + 8 * rsi]
     cmp o_rsp, r8
     jle .end
     mov r10, REDIRECTION_FLAG
-    mov qword[program_stub], .continue  ; cross the next instruction;
+    mov qword[dynamic_program_stub], .continue  ; cross the next instruction;
     jmp impl_print_top_stack
 .continue:
-    inc rbp
+    inc rsi
     jmp .loop
 .end:
+    xor rsi, rsi
     jmp next
 
-; %rbp - stack base;
+; %rsi - stack base offset;
 ; %r10 - redirection flag;
 impl_print_top_stack:
-    mov rax, [rsp + 8 * rbp]
+    mov rax, [rsp + 8 * rsi]
     test eax, 1 << 15
     je .init
     not rax
@@ -468,7 +526,7 @@ impl_print_top_stack:
     cmp r10, REDIRECTION_FLAG
     jne .end 
 .jump:
-    jmp [program_stub]
+    jmp [dynamic_program_stub]
 .end:
     jmp next
 
