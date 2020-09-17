@@ -46,7 +46,7 @@ global _start
 section .text
 
 compilation_stub:
-    ; ready to go.
+    ; TODO.
     dq xt_exit
 
 repl_stub:
@@ -255,26 +255,40 @@ impl_define_colon:
 .reserved:
     inc r9
     mov byte[r9], 0  ; reserved byte.
-.find_colon:
+.search_colon:
     inc r9
     mov qword[r9], xt_docol
-    ; lookup (another way of implementation);
-    ;xor r10, r10
-    ;mov r10b, [r8]
-    ;cmp r10, '-'
-
-
-    ;add r9, 8
-    ;mov qword[r9], xt_print_top_stack
-
+    ; lookup (cmpsb/repe may not be a good choice);
+.consume_space:
+    inc r8
+    mov r10b, [r8]
+    cmp r10b, ' '
+    je .consume_space
+    cmp r10b, 0x3b
+    je .epilogue
+    push r9
+    sys_parse_word r8, .find_word, .find_num, .invalid
+.find_word:
+    lea r8, [r9 + rcx]
+    pop r9
+    add r9, 8
+    lea r10, [r10 + rcx + 2]
+    mov qword[r9], r10
+    jmp .consume_space
+.find_num:
+    ; TODO.
+.invalid:
+    add rsp, 16
+    jmp .end
+.epilogue:
     add r9, 8
     mov qword[r9], xt_ret
-.end:
     add r9, 8
     mov qword[r9], 0
     pop r8  ; pop endpoint.
     mov [r8], r9 
     mov qword[dynamic_colon_stub], r9
+.end:
     jmp next
 
 impl_rot:  ; top -> bottom (left rotate).
@@ -327,44 +341,7 @@ impl_repl_reset:
 
 impl_eval_word:
     ; deal with primitives (number).
-    xor rax, rax
-    xor r8, r8
-    lea r9, [input_buf]
-    mov r8b, [r9]
-    cmp r8, '-'
-    jne .validate_num
-    inc r9
-    mov r8b, [r9]
-    mov rax, NEGATIVE_FLAG  ; indicate negative.
-.validate_num:
-    cmp r8, '9'
-    jg .lookup_word
-    cmp r8, '0'
-    jge .num_parse
-.lookup_word:
-    cmp rax, NEGATIVE_FLAG
-    je .end
-    mov r8, _nw_head
-.word_forward:
-    mov rcx, -1
-    mov r8, [r8]  ; start looking. 
-    cmp r8, 0
-    je .invalid
-    mov r10, r8
-    add r10, 8
-.word_loop:
-    inc rcx
-    mov bpl, [r9 + rcx]  ; input char;
-    cmp byte[r10 + rcx], 0
-    jne .continue
-    cmp bpl, `\n`
-    je .word_eval
-    cmp bpl, ' '
-    je .word_eval
-.continue:
-    sub bpl, [r10 + rcx]  ; comparing char;
-    jz .word_loop
-    jmp .word_forward
+    sys_parse_word input_buf, .word_eval, .num_parse, .invalid
 .word_eval:
     ; eval word.
     lea r8, [r10 + rcx + 2]
@@ -378,7 +355,6 @@ impl_eval_word:
 .num_parse:
     ; number.
     sys_parse_int r9
-.num_eval:
     push rax
 .end:
     jmp next
@@ -507,7 +483,6 @@ impl_print_top_stack:
     test eax, 1 << 31
     je .init
     not rax
-    ;or rax, 1 << 15
     inc rax
     push rax
     sys_print [codes + codes_negative_sign_idx], 1  ; %rax will be modified.
