@@ -18,6 +18,7 @@
 %define codes_negative_sign_idx 0x1f
 
 %define REDIRECTION_FLAG 2 << 5
+%define NEGATIVE_FLAG 2 << 6
 
 %macro GUARD_STACK_LEN 1
     mov r8, rsp
@@ -257,7 +258,11 @@ impl_define_colon:
 .find_colon:
     inc r9
     mov qword[r9], xt_docol
-    ; lookup;
+    ; lookup (another way of implementation);
+    ;xor r10, r10
+    ;mov r10b, [r8]
+    ;cmp r10, '-'
+
 
     ;add r9, 8
     ;mov qword[r9], xt_print_top_stack
@@ -328,17 +333,17 @@ impl_eval_word:
     mov r8b, [r9]
     cmp r8, '-'
     jne .validate_num
-    cmp byte[r9 + 1], 0xa
-    je .lookup_word
     inc r9
     mov r8b, [r9]
-    mov rax, -1  ; indicate negative.
+    mov rax, NEGATIVE_FLAG  ; indicate negative.
 .validate_num:
     cmp r8, '9'
     jg .lookup_word
     cmp r8, '0'
     jge .num_parse
 .lookup_word:
+    cmp rax, NEGATIVE_FLAG
+    je .end
     mov r8, _nw_head
 .word_forward:
     mov rcx, -1
@@ -499,9 +504,10 @@ impl_print_all_stack:
 ; %r10 - redirection flag;
 impl_print_top_stack:
     mov rax, [rsp + 8 * rsi]
-    test eax, 1 << 15
+    test eax, 1 << 31
     je .init
     not rax
+    ;or rax, 1 << 15
     inc rax
     push rax
     sys_print [codes + codes_negative_sign_idx], 1  ; %rax will be modified.

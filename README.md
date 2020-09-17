@@ -57,11 +57,10 @@ Execution Sequences (Colon Words):
 * **Word**:
 
 <pre>
-|---------------------->  <i><b>header</b></i> (exclude private word)  <------------------------|
+|---------------------->  <i><b>header</b> (exclude private word)</i>  <------------------------|
 +----------------------------+----------------+-----------------+-----------------+------------------------+
-| <i><b>addr</b> of previous word (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i><b>immediates</b> (dq)</i> | <i><b>addr</b> of implementation</i> |
+| <i>previous word <b>addr</b> (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i><b>immediates</b> (dq)</i> | <i>implementation <b>addr</b></i> |
 +----------------------------+----------------+-----------------+-----------------+------------------------+
-
 
     +-----------------+
 ... | <i><b>immediates</b> (dq)</i> | ... => <i>(2 immdeiates at most, each one is 4 bytes.)</i>

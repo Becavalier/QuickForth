@@ -14,10 +14,10 @@
     jmp %%start
 %%complement:
     pop rax
-    cmp rax, -1
+    cmp rax, NEGATIVE_FLAG
     jne %%end
     not r8
-    or r8, 1 << 15
+    or r8d, 1 << 31
     inc r8
 %%end:
     xor rax, rax
