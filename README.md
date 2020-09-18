@@ -57,15 +57,10 @@ Execution Sequences (Colon Words):
 * **Word**:
 
 <pre>
-|--------------------->  <i><b>header</b> (exclude private word)</i>  <-----------------------|
-+---------------------+----------------+-----------------+-----------------+---------------------+
-| <i>next word <b>addr</b> (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i><b>immediates</b> (dq)</i> | <i>implementation <b>addr</b></i> |
-+---------------------+----------------+-----------------+-----------------+---------------------+
-
-    +-----------------+
-... | <i><b>immediates</b> (dq)</i> | ... => <i>(2 immdeiates at most, each one is 4 bytes.)</i>
-    +-----------------+
-
+|---------------------->  <i><b>header</b> (exclude private word)</i>  <---------------------|
++---------------------+----------------+-----------------+---------------------+
+| <i>next word <b>addr</b> (dq)</i> | <i><b>label</b> (string)</i> | <i>(reserved byte)</i> | <i>implementation <b>addr</b></i> |
++---------------------+----------------+-----------------+---------------------+
 </pre>
 
 * **Dictionary**:
@@ -80,4 +75,12 @@ Execution Sequences (Colon Words):
 ... | <i><b>dynamic_colon_stub</b></i> | ... => | <i>next effective address (dq)</i> | <i>words</i> | ... 
     +--------------------+        +-------------------------------------+
                                                   |--------------|--------^
+</pre>
+
+* **Opcode** *(For inner interpreter, saving the operation and immediates of each dynamic colon word)*:
+
+<pre>
++----------------+-------------------+
+| <i><b>opcode</b> (qword)</i> | <i><b>immediate</b> (qword)</i> |
++----------------+-------------------+
 </pre>
