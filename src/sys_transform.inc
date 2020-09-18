@@ -1,26 +1,22 @@
 %macro sys_parse_int 1
-    push rax
-    xor rax, rax
     xor r8, r8
     xor r10, r10
 %%start:
-    mov r10b, [%1 + rax]
+    mov r10b, [%1]
     cmp r10b, '0'
     jl %%complement
     sub r10b, '0'
     imul r8, 10
     add r8, r10
-    inc rax
+    inc %1
     jmp %%start
 %%complement:
-    pop rax
     cmp rax, NEGATIVE_FLAG
     jne %%end
     not r8
     or r8d, 1 << 31
     inc r8
 %%end:
-    xor rax, rax
     movsx rax, r8d
 %endmacro
 

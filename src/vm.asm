@@ -20,6 +20,9 @@
 %define REDIRECTION_FLAG 2 << 5
 %define NEGATIVE_FLAG 2 << 6
 
+; the lower address of VSA can not be used.
+%define INNER_OPCODE_PUSH 1 << 0
+
 %macro GUARD_STACK_LEN 1
     mov r8, rsp
     add r8, 4 * %1
@@ -276,7 +279,15 @@ impl_define_colon:
     mov qword[r9], r10
     jmp .consume_space
 .find_num:
-    ; TODO.
+    sys_parse_int r9
+    mov r8, r9
+    pop r9
+    add r9, 8
+    ; inner opcode.
+    mov qword[r9], INNER_OPCODE_PUSH
+    add r9, 8
+    mov qword[r9], rax
+    jmp .consume_space
 .invalid:
     add rsp, 16
     jmp .end
@@ -516,6 +527,14 @@ impl_exit:
 
 ; inner interpreter.
 next:
+    mov r8, [pc]
+    cmp r8, INNER_OPCODE_PUSH
+    jne .end
+.inner_opcode_push:
+    mov r8, [pc + 8]
+    push r8
+    add pc, 16
+.end:
     mov w, [pc]  ; indirect-threading: xt_ -> impl_.
     add pc, 8
     jmp [w]
