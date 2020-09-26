@@ -2,11 +2,12 @@
 %include 'sys_transform.inc'
 
 ; macros (%rcx and %r11 could be modified by syscall).
-%define rstack r13
 %define astack rbx
-%define pc r15
+%define rstack r12
+%define o_rsp r13
 %define w r14
-%define o_rsp r12
+%define pc r15
+%define ep rbp
 
 %define ascii_digits_offset 0x30
 %define codes_arrow_sign_idx 0x10
@@ -17,10 +18,13 @@
 %define codes_invalid_txt_len 11
 %define codes_negative_sign_idx 0x1f
 
-%define REDIRECTION_FLAG 2 << 5
-%define NEGATIVE_FLAG 2 << 6
+%define FD_STDIN 0
+%define FD_STDOUT 1  
 
-; the lower address of VSA can not be used.
+%define REDIRECTION_FLAG 1 << 5
+%define NEGATIVE_FLAG 1 << 6
+
+; theoretically, the lowest address of VAS can not be used by OS.
 %define INNER_OPCODE_PUSH 1 << 0
 
 %macro GUARD_STACK_LEN 1
@@ -41,15 +45,22 @@ attach_stack_start:
 resb 1024  ; high addr.
 return_stack_start:
 ; static memory.
-input_buf: resb 1024
+input_buf: resb 8192
 dynamic_colon_stub: resb 4096
 dynamic_program_stub: resb 16
 
 global _start
 section .text
 
+; forth script -> rel-address binary.
 compilation_stub:
     ; TODO.
+    dq xt_exit
+
+interpretation_stub:
+    mov r8, [rsp + 16]
+    mov r8, [r8]
+
     dq xt_exit
 
 repl_stub:
@@ -70,15 +81,8 @@ xt_docol:
     jmp next
 
 ; return.
-nw_colon:
-    dq nw_docol
-    db ':', 0
-    db 0
-xt_colon:
-    dq impl_colon
-
 nw_ret:
-    dq nw_colon
+    dq nw_docol
     db 'ret', 0
     db 0
 xt_ret:
@@ -234,71 +238,68 @@ xt_eval_word:
 
 ; [IMPLEMENTATIONS]
 impl_define_colon:
-    lea r8, [input_buf]
 .move:
-    inc r8
-    mov r9b, [r8]
-    cmp r9b, ' '
+    inc ep
+    mov r8b, [ep]
+    cmp r8b, ' '
     jne .define_word
     jmp .move
 .define_word:
-    mov r9, qword[dynamic_colon_stub]  ; available address.
-    push r9  ; save endpoint.
-    add r9, 8
+    mov r8, qword[dynamic_colon_stub]  ; available address.
+    push r8  ; save endpoint.
+    add r8, 8
 .loop:
-    mov r10b, [r8]
-    cmp r10b, ' '
+    mov r9b, [ep]
+    cmp r9b, ' '
     je .null_terminate
-    mov [r9], r10b
+    mov [r8], r9b
+    inc ep
     inc r8
-    inc r9
     jmp .loop
 .null_terminate:
-    mov byte[r9], 0
+    mov byte[r8], 0
 .reserved:
-    inc r9
-    mov byte[r9], 0  ; reserved byte.
-.search_colon:
-    inc r9
-    mov qword[r9], xt_docol
-    ; lookup (cmpsb/repe may not be a good choice);
-.consume_space:
     inc r8
-    mov r10b, [r8]
-    cmp r10b, ' '
+    mov byte[r8], 0  ; reserved byte.
+.search_colon:
+    inc r8
+    mov qword[r8], xt_docol
+    ; lookup (repe/cmpsb may not be a good choice);
+.consume_space:
+    inc ep
+    mov r9b, [ep]
+    cmp r9b, ' '
     je .consume_space
-    cmp r10b, 0x3b
+    cmp r9b, 0x3b  ; semicolon.
     je .epilogue
-    push r9
-    sys_parse_word r8, .find_word, .find_num, .invalid
+    push r8  ; save current addr.
+    sys_parse_word .find_word, .find_num, .invalid
 .find_word:
-    lea r8, [r9 + rcx]
-    pop r9
-    add r9, 8
-    lea r10, [r10 + rcx + 2]
-    mov qword[r9], r10
+    lea r9, [r9 + 2]
+    pop r8  ; retrieve previous addr.
+    add r8, 8
+    mov qword[r8], r9
     jmp .consume_space
 .find_num:
-    sys_parse_int r9
-    mov r8, r9
-    pop r9
-    add r9, 8
+    sys_parse_int
+    pop r8
+    add r8, 8
     ; inner opcode.
-    mov qword[r9], INNER_OPCODE_PUSH
-    add r9, 8
-    mov qword[r9], rax
+    mov qword[r8], INNER_OPCODE_PUSH
+    add r8, 8
+    mov qword[r8], rax
     jmp .consume_space
 .invalid:
     add rsp, 16
     jmp .end
 .epilogue:
-    add r9, 8
-    mov qword[r9], xt_ret
-    add r9, 8
-    mov qword[r9], 0
-    pop r8  ; pop endpoint.
-    mov [r8], r9 
-    mov qword[dynamic_colon_stub], r9
+    add r8, 8
+    mov qword[r8], xt_ret
+    add r8, 8
+    mov qword[r8], 0
+    pop r9  ; pop endpoint.
+    mov [r9], r8
+    mov qword[dynamic_colon_stub], r8
 .end:
     jmp next
 
@@ -347,57 +348,63 @@ impl_drop:
     jmp next
 
 impl_repl_reset:
+    mov ep, input_buf
     mov pc, repl_stub
     jmp next
 
 impl_eval_word:
     ; deal with primitives (number).
-    sys_parse_word input_buf, .word_eval, .num_parse, .invalid
+    sys_parse_word .word_eval, .num_parse, .invalid
 .word_eval:
     ; eval word.
-    lea r8, [r10 + rcx + 2]
+    lea r8, [r9 + 2]
     mov [dynamic_program_stub], r8
     mov qword[dynamic_program_stub + 8], xt_repl_reset
     mov pc, dynamic_program_stub  ; dynamic threading.
     jmp next
 .invalid:
-    sys_print [codes + codes_invalid_txt_idx], codes_invalid_txt_len
+    syscall_write FD_STDOUT, [codes + codes_invalid_txt_idx], codes_invalid_txt_len
     jmp .end
 .num_parse:
     ; number.
-    sys_parse_int r9
+    sys_parse_int
     push rax
 .end:
     jmp next
 
 impl_read_word:
-    sys_print [codes + codes_arrow_sign_idx], codes_arrow_sign_len
+    syscall_write FD_STDOUT, [codes + codes_arrow_sign_idx], codes_arrow_sign_len
 .read:
-    sys_read_stdin input_buf, 0x20
+    syscall_read FD_STDIN, input_buf, 0x20
     cmp rax, 1
     jle .read
     jmp next
 
 impl_init:
-    ; save %rsi;
-    xor rsi, rsi
-    ; initialize dynamic colon sutb;
+    ; initialize execution pointer.
+    mov ep, input_buf
+    ; initialize dynamic colon sutb.
     lea r8, [dynamic_colon_stub + 8]
     mov qword[r8], 0
     mov qword[dynamic_colon_stub], r8
     mov o_rsp, rsp
     mov astack, attach_stack_start
     mov rstack, return_stack_start  ; stack holding old outer pc.
+    ; select executon mode.
+    cmp rsi, 1
+    jg .interpret
+.repl:    
     mov pc, repl_stub
+    jmp .end
+.interpret:
+    mov pc, interpretation_stub
+.end:
+    xor rsi, rsi
     jmp next
 
 impl_ret:
     mov pc, [rstack]
     add rstack, 8
-    jmp next
-
-impl_colon:
-
     jmp next
 
 impl_plus:
@@ -490,13 +497,14 @@ impl_print_all_stack:
 ; %rsi - stack base offset;
 ; %r10 - redirection flag;
 impl_print_top_stack:
+    GUARD_STACK_LEN 1
     mov rax, [rsp + 8 * rsi]
     test eax, 1 << 31
     je .init
     not rax
     inc rax
     push rax
-    sys_print [codes + codes_negative_sign_idx], 1  ; %rax will be modified.
+    syscall_write FD_STDOUT, [codes + codes_negative_sign_idx], 1  ; %rax will be modified.
     pop rax
 .init:
     mov rcx, 10
@@ -512,8 +520,8 @@ impl_print_top_stack:
     cmp eax, 0
     jne .loop
 .print:
-    sys_print [astack], r8
-    sys_print [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
+    syscall_write FD_STDOUT, [astack], r8
+    syscall_write FD_STDOUT, [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
     mov astack, attach_stack_start
     cmp r10, REDIRECTION_FLAG
     jne .end 
@@ -523,7 +531,7 @@ impl_print_top_stack:
     jmp next
 
 impl_exit:
-    sys_exit
+    syscall_exit
 
 ; inner interpreter.
 next:
@@ -540,6 +548,9 @@ next:
     jmp [w]
 
 _start:
+    ; deal with 'argv'.
+    xor rbp, rbp
+    pop rsi
     push 0
     jmp impl_init
     

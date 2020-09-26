@@ -1,6 +1,6 @@
 
 # QuickForth
-A forth dialect prototype with its VM. 
+A simple forth dialect prototype with its VM. 
 
 ***Can only be used under Linux X86-64***.
 
@@ -10,7 +10,7 @@ A forth dialect prototype with its VM.
 bash ./build.sh
 ```
 
-### Concept
+### Concepts
 
 * **Native Word**: 
 

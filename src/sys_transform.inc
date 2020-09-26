@@ -1,14 +1,14 @@
-%macro sys_parse_int 1
+%macro sys_parse_int 0
     xor r8, r8
     xor r10, r10
 %%start:
-    mov r10b, [%1]
+    mov r10b, [ep]
     cmp r10b, '0'
     jl %%complement
     sub r10b, '0'
     imul r8, 10
     add r8, r10
-    inc %1
+    inc ep
     jmp %%start
 %%complement:
     cmp rax, NEGATIVE_FLAG
@@ -20,46 +20,52 @@
     movsx rax, r8d
 %endmacro
 
-; %1 - input buffer;
-; %2 - word evaluation branch;
-; %3 - number evaluation branch;
-; %4 - invalid branch;
-%macro sys_parse_word 4
-    lea r9, [%1]
+; %1 - branch: word.
+; %2 - branch: number.
+; %3 - branch: (invalid).
+%macro sys_parse_word 3
     xor r8, r8
-    mov r8b, [r9]
+    mov r8b, [ep]
     cmp r8, '-'
     jne %%validate_num
-    inc r9
-    mov r8b, [r9]
+    inc ep
+    mov r8b, [ep]
     mov rax, NEGATIVE_FLAG  ; indicate negative.
 %%validate_num:
     cmp r8, '9'
     jg %%lookup_word
     cmp r8, '0'
-    jge %3
+    jge %2
 %%lookup_word:
-    cmp rax, NEGATIVE_FLAG
-    je %4
     mov r8, _nw_head
+    push ep
 %%word_forward:
-    mov rcx, -1
+    mov ep, [rsp]
     mov r8, [r8]  ; start looking. 
     cmp qword[r8], 0
-    je %4
-    mov r10, r8
-    add r10, 8
+    je %%word_invalid_clean
+    mov r9, r8
+    add r9, 8
 %%word_loop:
-    inc rcx
-    mov bpl, [r9 + rcx]  ; input char;
-    cmp byte[r10 + rcx], 0
+    mov al, [ep]  ; input char;
+    cmp byte[r9], 0 
     jne %%continue
-    cmp bpl, `\n`
-    je %2
-    cmp bpl, ' '
-    je %2
+    cmp al, `\n`
+    je %%word_valid_clean
+    cmp al, ' '
+    je %%word_valid_clean
+    jmp %%word_forward
 %%continue:
-    sub bpl, [r10 + rcx]  ; comparing char;
+    mov r10, r9
+    inc r9
+    inc ep
+    sub al, [r10]  ; compare char;
     jz %%word_loop
     jmp %%word_forward
+%%word_valid_clean:
+    add rsp, 8
+    jmp %1
+%%word_invalid_clean:
+    add rsp, 8
+    jmp %3
 %endmacro

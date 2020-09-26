@@ -1,27 +1,27 @@
-%macro sys_exit 0
+%macro syscall_exit 0
 xor rdi, rdi
 mov rax, 60
 syscall
 %endmacro
 
-%macro sys_print 2
+%macro syscall_write 3
 push rsi
 push rdi
-lea rsi, %1
-mov rdi, 1
-mov rdx, %2
+lea rsi, %2
+mov rdi, %1
+mov rdx, %3
 mov rax, 1
 syscall
 pop rdi
 pop rsi
 %endmacro
 
-%macro sys_read_stdin 2
+%macro syscall_read 3
 push rsi
 push rdi
-mov rsi, %1
-mov rdi, 1
-mov rdx, %2
+mov rsi, %2
+mov rdi, %1
+mov rdx, %3
 mov rax, 0
 syscall
 pop rdi
