@@ -12,7 +12,7 @@ bash ./build.sh
 
 ### Modes
 
-- [x] REPL;
+* **REPL**:
 
 ```bash
 ➜  src git:(master) ./vm
@@ -24,7 +24,7 @@ bash ./build.sh
 > exit
 ```
 
-- [x] Interpreter;
+* **Interpreter**:
 
 ```bash
 ➜  src git:(master) ./vm forth_discr.fth

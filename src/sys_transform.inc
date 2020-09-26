@@ -37,6 +37,10 @@
     cmp r8, '0'
     jge %2
 %%lookup_word:
+    cmp rax, NEGATIVE_FLAG
+    jne %%lookup_word_main
+    dec ep
+%%lookup_word_main:
     mov r8, _nw_head
     push ep
 %%word_forward:
