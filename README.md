@@ -10,6 +10,27 @@ A simple forth dialect prototype with its VM.
 bash ./build.sh
 ```
 
+### Modes
+
+- [x] REPL;
+
+```bash
+➜  src git:(master) ./vm
+> 1
+> 2
+> +
+> .S
+3
+> exit
+```
+
+- [x] Interpreter;
+
+```bash
+➜  src git:(master) ./vm forth_discr.fth
+-8
+```
+
 ### Concepts
 
 * **Native Word**: 
