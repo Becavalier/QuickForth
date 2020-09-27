@@ -25,7 +25,20 @@
 ; %3 - branch: (invalid).
 %macro sys_parse_word 3
     xor r8, r8
+%%consume_space:
     mov r8b, [ep]
+    cmp r8b, 0
+    je %3
+    cmp r8b, ' '
+    jne %%consume_line_feed
+    inc ep
+    jmp %%consume_space
+%%consume_line_feed:
+    cmp r8b, `\n`
+    jne %%validate_entry
+    inc ep
+    jmp %%consume_space
+%%validate_entry:
     cmp r8, '-'
     jne %%validate_num
     inc ep
@@ -33,10 +46,10 @@
     mov rax, NEGATIVE_FLAG  ; indicate negative.
 %%validate_num:
     cmp r8, '9'
-    jg %%lookup_word
+    jg %%lookup_compensate
     cmp r8, '0'
     jge %2
-%%lookup_word:
+%%lookup_compensate:
     cmp rax, NEGATIVE_FLAG
     jne %%lookup_word_main
     dec ep

@@ -20,9 +20,14 @@
 
 %define FD_STDIN 0
 %define FD_STDOUT 1  
+%define OPEN_FLAG_O_RDONLY 0
+%define OPEN_MODE_FREAD 1
 
 %define REDIRECTION_FLAG 1 << 5
 %define NEGATIVE_FLAG 1 << 6
+%define SYSCALL_KEEP_REG_FLAG 1 << 7
+
+%define INPUT_BUF_SIZE 1 << 13
 
 ; theoretically, the lowest address of VAS can not be used by OS.
 %define INNER_OPCODE_PUSH 1 << 0
@@ -45,7 +50,7 @@ attach_stack_start:
 resb 1024  ; high addr.
 return_stack_start:
 ; static memory.
-input_buf: resb 8192
+input_buf: resb INPUT_BUF_SIZE
 dynamic_colon_stub: resb 4096
 dynamic_program_stub: resb 16
 
@@ -58,14 +63,13 @@ compilation_stub:
     dq xt_exit
 
 interpretation_stub:
-    mov r8, [rsp + 16]
-    mov r8, [r8]
-
-    dq xt_exit
+    dq xt_load_prog
+    dq xt_interpret_eval_word
+    dq xt_interpret_reset
 
 repl_stub:
     dq xt_read_word
-    dq xt_eval_word
+    dq xt_repl_eval_word
     dq xt_repl_reset
 
 ; [DICTIONARY (WORDS)].
@@ -227,16 +231,60 @@ _nw_head:
 xt_repl_reset:
     dq impl_repl_reset
 
+xt_interpret_reset:
+    dq impl_interpret_reset
+
 xt_init:
     dq impl_init
 
 xt_read_word:
     dq impl_read_word
 
-xt_eval_word:
-    dq impl_eval_word
+xt_repl_eval_word:
+    dq impl_repl_eval_word
+
+xt_interpret_eval_word:
+    dq impl_interpret_eval_word
+
+xt_load_prog:
+    dq impl_load_prog
 
 ; [IMPLEMENTATIONS]
+impl_interpret_reset:
+    lea pc, [interpretation_stub + 8]
+    jmp next
+
+impl_interpret_eval_word:
+    sys_parse_word .word_eval, .num_parse, .invalid
+.word_eval:
+    ; eval word.
+    lea r8, [r9 + 2]
+    mov [dynamic_program_stub], r8
+    mov qword[dynamic_program_stub + 8], xt_interpret_reset
+    mov pc, dynamic_program_stub  ; dynamic threading.
+    jmp next
+.invalid:
+    syscall_exit
+.num_parse:
+    ; number.
+    sys_parse_int
+    push rax
+.end:
+    jmp next
+
+impl_load_prog:
+    mov r8, [rsp + 16]
+    syscall_open r8, OPEN_FLAG_O_RDONLY, OPEN_MODE_FREAD, 0
+    cmp rax, 0
+    jl .exit
+    syscall_read rax, input_buf, INPUT_BUF_SIZE, 0
+    cmp rax, 0
+    jg .end
+.exit:
+    syscall_exit
+.end:
+    jmp next
+
 impl_define_colon:
 .move:
     inc ep
@@ -293,6 +341,7 @@ impl_define_colon:
     add rsp, 16
     jmp .end
 .epilogue:
+    inc ep
     add r8, 8
     mov qword[r8], xt_ret
     add r8, 8
@@ -352,8 +401,7 @@ impl_repl_reset:
     mov pc, repl_stub
     jmp next
 
-impl_eval_word:
-    ; deal with primitives (number).
+impl_repl_eval_word:
     sys_parse_word .word_eval, .num_parse, .invalid
 .word_eval:
     ; eval word.
@@ -363,7 +411,7 @@ impl_eval_word:
     mov pc, dynamic_program_stub  ; dynamic threading.
     jmp next
 .invalid:
-    syscall_write FD_STDOUT, [codes + codes_invalid_txt_idx], codes_invalid_txt_len
+    syscall_write FD_STDOUT, [codes + codes_invalid_txt_idx], codes_invalid_txt_len, SYSCALL_KEEP_REG_FLAG
     jmp .end
 .num_parse:
     ; number.
@@ -373,9 +421,9 @@ impl_eval_word:
     jmp next
 
 impl_read_word:
-    syscall_write FD_STDOUT, [codes + codes_arrow_sign_idx], codes_arrow_sign_len
+    syscall_write FD_STDOUT, [codes + codes_arrow_sign_idx], codes_arrow_sign_len, SYSCALL_KEEP_REG_FLAG
 .read:
-    syscall_read FD_STDIN, input_buf, 0x20
+    syscall_read FD_STDIN, input_buf, 0x20, SYSCALL_KEEP_REG_FLAG
     cmp rax, 1
     jle .read
     jmp next
@@ -504,7 +552,7 @@ impl_print_top_stack:
     not rax
     inc rax
     push rax
-    syscall_write FD_STDOUT, [codes + codes_negative_sign_idx], 1  ; %rax will be modified.
+    syscall_write FD_STDOUT, [codes + codes_negative_sign_idx], 1, SYSCALL_KEEP_REG_FLAG  ; %rax will be modified.
     pop rax
 .init:
     mov rcx, 10
@@ -520,8 +568,8 @@ impl_print_top_stack:
     cmp eax, 0
     jne .loop
 .print:
-    syscall_write FD_STDOUT, [astack], r8
-    syscall_write FD_STDOUT, [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len
+    syscall_write FD_STDOUT, [astack], r8, SYSCALL_KEEP_REG_FLAG
+    syscall_write FD_STDOUT, [codes + codes_wrap_ctl_idx], codes_wrap_ctl_len, SYSCALL_KEEP_REG_FLAG
     mov astack, attach_stack_start
     cmp r10, REDIRECTION_FLAG
     jne .end 
