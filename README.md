@@ -1,6 +1,8 @@
 
 # QuickForth
-A simple forth dialect prototype with its VM. 
+A simple forth dialect prototype with its VM, just for experimental purpose. 
+
+\* *You can continue to extend the function of this VM if you will.*
 
 ***Can only be used under Linux X86-64***.
 
