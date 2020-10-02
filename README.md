@@ -4,10 +4,10 @@ A simple forth dialect prototype with its VM.
 
 ***Can only be used under Linux X86-64***.
 
-### Compile & Run
+### Compile
 
 ```bash
-bash ./build.sh
+make  # the binary will be compiled into the "build" folder.
 ```
 
 ### Modes
@@ -15,7 +15,7 @@ bash ./build.sh
 * **REPL**:
 
 ```bash
-➜  src git:(master) ./vm
+➜  Forthress git:(master) ✗ ./build/vm
 > 1
 > 2
 > +
@@ -27,7 +27,7 @@ bash ./build.sh
 * **Interpreter**:
 
 ```bash
-➜  src git:(master) ./vm forth_discr.fth
+➜  Forthress git:(master) ✗ ./build/vm forth_discr.fth
 -8
 ```
 

@@ -1,5 +1,5 @@
-%include 'sys_call.inc'
-%include 'sys_transform.inc'
+%include './sys_call.inc'
+%include './sys_transform.inc'
 
 ; macros (%rcx and %r11 could be modified by syscall).
 %define astack rbx
@@ -38,6 +38,9 @@
     cmp o_rsp, r8
     jle .end
 %endmacro
+
+extern _GLOBAL_OFFSET_TABLE_
+extern cadd
 
 section .data
 codes:
@@ -148,8 +151,15 @@ nw_equal:
 xt_equal:
     dq impl_equal
 
-nw_print_top_stack:
+nw_c_dup_add:
     dq nw_equal
+    db 'c_dup_add', 0
+    db 0
+xt_c_dup_add:
+    dq impl_c_dup_add
+
+nw_print_top_stack:
+    dq nw_c_dup_add
     db 'print_top_stack', 0
     db 0
 xt_print_top_stack:
@@ -250,6 +260,13 @@ xt_load_prog:
     dq impl_load_prog
 
 ; [IMPLEMENTATIONS]
+impl_c_dup_add:
+    mov rsi, [rsp]
+    mov rdi, [rsp + 8]
+    call cadd wrt ..plt
+    push rax
+    jmp next
+
 impl_interpret_reset:
     lea pc, [interpretation_stub + 8]
     jmp next
